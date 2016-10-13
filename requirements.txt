@@ -1,0 +1,5 @@
+pytest
+pytest_watch
+pytest_eradicate
+pytest_flake8
+mock

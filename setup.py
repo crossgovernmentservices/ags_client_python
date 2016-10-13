@@ -1,6 +1,6 @@
 from setuptools import setup
 
-with open('ags_client/__init__.py', 'r') as f:
+with open('ags/__init__.py', 'r') as f:
     version = reduce(
         lambda a, l: l.startswith('__version__') and l[15:-2] or a, f, '')
 

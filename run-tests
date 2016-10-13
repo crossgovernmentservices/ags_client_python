@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import argparse
+import pytest
+
+
+BASE_TEST_RUNNER_ARGS = ['--eradicate', '--flake8']
+
+
+def main():
+    args = get_args()
+    return run_tests(args.test, watch=args.watch)
+
+
+def get_args():
+    parser = arg_parser()
+    return parser.parse_args()
+
+
+def arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--test', default='tests', help="""
+        The test module to run""".strip())
+    parser.add_argument('-w', '--watch', action='store_true', help="""
+        Watch files for changes and rerun tests automatically""".strip())
+    return parser
+
+
+def run_tests(suite, watch=False):
+    args = build_args(suite)
+    test_runner = runner(watch)
+    return test_runner(args)
+
+
+def build_args(suite):
+    args = BASE_TEST_RUNNER_ARGS
+    args.extend(specified_test_suite(suite))
+    return args
+
+
+def specified_test_suite(suite):
+    if not suite:
+        suite = 'tests'
+    return ['--pyargs', suite]
+
+
+def runner(watch=False):
+    if watch:
+        return continuously()
+    return singly()
+
+
+def continuously():
+    def runner(args):
+        import pytest_watch
+        return pytest_watch.command.main(['--'] + args)
+    return runner
+
+
+def singly():
+    return pytest.main
+
+
+if __name__ == '__main__':
+    main()
