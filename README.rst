@@ -1,21 +1,8 @@
 Accessing GaaP Services Client
 ==============================
 
-.... image:: https://travis-ci.org/ministryofjustice/postcodeinfo-client-python.svg?branch=master
-  ..:alt: Test result
-  ..:target: http://ci.dsd.io/job/BUILD-postcodeinfo-client-python/lastCompletedBuild/testReport/
-
-.... image:: https://coveralls.io/repos/ministryofjustice/postcodeinfo-client-python/badge.svg?branch=HEAD&service=github
-  ..:target: https://coveralls.io/github/ministryofjustice/postcodeinfo-client-python?branch=HEAD
-  ..:alt: Coverage report
-
-.... image:: https://codeclimate.com/github/ministryofjustice/postcodeinfo-client-python/badges/gpa.svg
-   ..:target: https://codeclimate.com/github/ministryofjustice/postcodeinfo-client-python
-   ..:alt: Code Climate
-
-.... image:: https://requires.io/github/ministryofjustice/postcodeinfo-client-python/requirements.svg?branch=master
-     ..:target: https://requires.io/github/ministryofjustice/postcodeinfo-client-python/requirements/?branch=master
-     ..:alt: Requirements Status
+.. image:: https://travis-ci.org/crossgovernmentservices/ags_client_python.svg?branch=master
+  :alt: Test result
 
 Python package providing an API client for accessing GaaP services.
 
