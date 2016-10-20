@@ -4,7 +4,7 @@ import argparse
 import pytest
 
 
-BASE_TEST_RUNNER_ARGS = ['--eradicate', '--flake8']
+BASE_TEST_RUNNER_ARGS = ['--eradicate', '--flake8', '--spec']
 
 
 def main():

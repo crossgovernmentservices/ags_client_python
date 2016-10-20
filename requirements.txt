@@ -3,3 +3,5 @@ pytest_watch
 pytest_eradicate
 pytest_flake8
 mock
+pytest_spec
+requests
