@@ -4,6 +4,7 @@ Test OIDC Authorization Code Flow
 """
 
 import mock
+from textwrap import dedent
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import demo_app
 from wsgiref.util import setup_testing_defaults
@@ -11,7 +12,10 @@ from wsgiref.util import setup_testing_defaults
 import pytest
 
 import ags
-from ags.oidc import AuthenticationRequestError, AuthorizationCodeFlow
+from ags.oidc import (
+    AuthenticationRequestError,
+    AuthorizationCodeFlow,
+    IdToken)
 
 
 @pytest.fixture
@@ -20,6 +24,7 @@ def config():
         'AGS_BROKER_URL': 'http://broker',
         'AGS_BROKER_AUTH_ENDPOINT': '/auth',
         'AGS_BROKER_TOKEN_ENDPOINT': '/token',
+        'AGS_BROKER_JWKS_URI': '/keys',
         'AGS_CLIENT_ID': 'test-client',
         'AGS_CLIENT_SECRET': 'test-secret'
     }
@@ -72,13 +77,58 @@ def wsgi_request(wsgi_stack):
 
 @pytest.yield_fixture
 def post():
-    with mock.patch('ags.oidc.requests.post') as mock_post:
+    with mock.patch('ags.oidc.authz_flow.requests.post') as mock_post:
         yield mock_post
 
 
 @pytest.fixture
 def callback(post, wsgi_request):
     return wsgi_request('/oidc_cb?code=test-code')
+
+
+@pytest.fixture
+def test_key():
+    return {
+        "kid": "test-key",
+        "kty": "RSA",
+        "alg": "RS256",
+        "use": "sig",
+        "e": "AQAB",
+        "n": dedent("""
+            xQvzdm6pSJis1-4k8_Wi_B4FxWhWJmKExOd110knU_aQ5i7uBteGarQhdA4HIiBXOz
+            Yxk1PQnSilZ-zF4SDmSfnyvv_IU8bcznp129_ASGqcwCe32KU1Mm4BS5zp3ywdYGxx
+            oXw1kRp8bKUJEunVjzOI0H7n4_miNfYfHVYmlZpsWd2IptqRpEGftCNvF7tFkC1fuq
+            xWzO5-iM-6ToAGo9WZQeRiXqffKF3D73Y1pMdE04Ok_75qqQuy5i8G6VAMfljckQRY
+            OmkANZaLNX7wfRhUdPq6qauoU5sx5EWc3gpDcsmZvoNnRRYnWB1XGHCrg3LyiLSuxh
+            t9sk3oEhyIFw==
+        """).replace("\n", '')
+    }
+
+
+@pytest.fixture
+def id_token():
+    token = dedent("""
+        eyJhbGciOiJSUzI1NiIsImtpZCI6IjRmYjE1NjVlYWRlNTFiOWMzYTUyYmU0NDI0YjNjY
+        TkxYzM4ZjUzNjUiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiI4cHJZb1p5bTB6a3Q2WnpUSWJ
+        YYUZCUXZ0cldpMkE4eG1kQzlXRXozaTE0PUBsb2NhbGhvc3QiLCJlbWFpbCI6Imtlbi50
+        c2FuZ0BkaWdpdGFsLmNhYmluZXQtb2ZmaWNlLmdvdi51ayIsImVtYWlsX3ZlcmlmaWVkI
+        jp0cnVlLCJleHAiOjE0NzM4OTYzNjYsImlhdCI6MTQ3Mzg1MzE2NiwiaXNzIjoiaHR0cD
+        ovL2RleC5leGFtcGxlLmNvbTo1NTU2IiwibmFtZSI6IiIsInN1YiI6IjZjN2E5ZjQ1LTd
+        mNTctNGQ5MS1iZTBlLTI4NjY3M2EyOGM2ZiJ9.tAVC2OD70vuTiARWoSagm37xQcWZ3o8
+        W9jLvW8mHG39MgOp6GHGhyJuTgvkciDqi10SqHMcaGH9jSZepVUkQBNYPKejp9VZ3iiXy
+        q731ckzoY93q5TvSOqjkoG7_HxXCkD5RX2F6XdTq_Se231TSEgWPxYl3ycLzKtNMeD5o3
+        Aq8z_ypzgl7kQmEEdZWPSAcQr7-6IIHJ38UgDZfPhTYtUB4f_abgXXcuQV10uWkXBMdOz
+        fM2s9ByexSAvL2-HVs_jtdC3C-Rwu_05yKfduVO5yiNBxoyrkv2yZgEhfKNh1WLYj2cb0
+        8cs4iw4u8QSEOSEzL5Gy1wXPdL78aoaqUYg
+    """).replace("\n", '')
+    return IdToken(token, flow)
+
+
+@pytest.yield_fixture
+def keys(test_key):
+    with mock.patch('ags.oidc.authz_flow.requests.get') as mock_get:
+        mock_get.return_value.json.return_value = {"keys": [test_key]}
+        yield mock_get
 
 
 class TestAuthzCodeFlow(object):
@@ -181,5 +231,5 @@ class TestAuthzCodeFlow(object):
         assert token_response['access_token'] == 'test-access-token'
 
     @pytest.mark.xfail
-    def test_client_validates_id_token(self):
-        assert False
+    def test_client_validates_id_token(self, id_token):
+        id_token.is_valid()

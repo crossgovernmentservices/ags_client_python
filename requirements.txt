@@ -5,3 +5,5 @@ pytest_flake8
 mock
 pytest_spec
 requests
+python-jose
+cached-property

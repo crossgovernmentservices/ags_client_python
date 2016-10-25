@@ -1,26 +1,11 @@
 # -*- coding: utf-8 -*-
-"""
-OIDC client
-"""
 
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request
 
 import requests
 
-
-class AuthenticationRequestError(Exception):
-    pass
-
-
-class BrokerConfigError(Exception):
-    pass
-
-
-class AuthenticationResult(object):
-
-    def __init__(self):
-        pass
+from ags.oidc.exceptions import AuthenticationRequestError, BrokerConfigError
 
 
 DISPLAY_VALUES = ['page', 'popup', 'touch', 'wap']
@@ -106,9 +91,13 @@ class AuthorizationCodeFlow(object):
         self.broker_url = config.get('AGS_BROKER_URL')
         self._auth_endpoint = config.get('AGS_BROKER_AUTH_ENDPOINT')
         self._token_endpoint = config.get('AGS_BROKER_TOKEN_ENDPOINT')
+        self._jwks_uri = config.get('AGS_BROKER_JWKS_URI')
         self.client_id = config.get('AGS_CLIENT_ID')
         self.client_secret = config.get('AGS_CLIENT_SECRET')
         self.redirect_uri = 'http://localhost/oidc_callback'
+        self.id_token_signed_response_alg = 'RS256'
+        self.clock_skew = 60
+        self._keys = {}
 
     @property
     def auth_endpoint(self):
@@ -123,6 +112,18 @@ class AuthorizationCodeFlow(object):
         raise BrokerConfigError('Authentication endpoint not set')
 
     @property
+    def jwks_uri(self):
+        if not self._jwks_uri:
+
+            if self.broker_url:
+                self.load_broker_config()
+
+        if self._jwks_uri:
+            return urljoin(self.broker_url, self._jwks_uri)
+
+        raise BrokerConfigError('JWKs URI not set')
+
+    @property
     def token_endpoint(self):
         if not self._token_endpoint:
 
@@ -134,17 +135,7 @@ class AuthorizationCodeFlow(object):
 
         raise BrokerConfigError('Token endpoint not set')
 
-    def authenticate_user(self):
-        """
-        """
-
-        return AuthenticationResult()
-
     def authentication_request(self, **kwargs):
-        """
-        Construct authentication request URL
-        """
-
         return AuthenticationRequest(
             url=self.auth_endpoint,
             response_type='code',
@@ -153,10 +144,6 @@ class AuthorizationCodeFlow(object):
             **kwargs)
 
     def token_request(self, authz_code, **kwargs):
-        """
-        Construct token request URL
-        """
-
         return TokenRequest(
             url=self.token_endpoint,
             code=authz_code,
@@ -171,3 +158,10 @@ class AuthorizationCodeFlow(object):
             req.full_url,
             data=req.data,
             headers=req.headers).json()
+
+    def get_key(self, kid):
+        if kid not in self._keys:
+            key_data = requests.get(self.jwks_uri).json()
+            self._keys = {key['kid']: key for key in key_data['keys']}
+
+        return self._keys[kid]
