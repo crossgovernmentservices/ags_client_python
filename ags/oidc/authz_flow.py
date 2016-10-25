@@ -1,11 +1,22 @@
 # -*- coding: utf-8 -*-
 
+from base64 import b64encode
+import logging
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request
 
 import requests
 
 from ags.oidc.exceptions import AuthenticationRequestError, BrokerConfigError
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 
 DISPLAY_VALUES = ['page', 'popup', 'touch', 'wap']
@@ -69,16 +80,20 @@ class TokenRequest(Request):
 
     def __init__(self, url, code, **kwargs):
 
+        auth = '{client_id}:{client_secret}'.format(**kwargs).encode('utf-8')
+        auth = 'Basic {}'.format(b64encode(auth).decode('latin1'))
+
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': 'Basic {}'.format(kwargs.pop('client_secret'))
+            'Authorization': auth
         }
 
         data = {
             'grant_type': 'authorization_code',
             'code': code,
             'redirect_uri': kwargs.pop('redirect_uri'),
-            'client_id': kwargs.pop('client_id')
+            'client_id': kwargs.pop('client_id'),
+            'client_secret': kwargs.pop('client_secret')
         }
         data = urlencode(data)
 
@@ -94,7 +109,7 @@ class AuthorizationCodeFlow(object):
         self._jwks_uri = config.get('AGS_BROKER_JWKS_URI')
         self.client_id = config.get('AGS_CLIENT_ID')
         self.client_secret = config.get('AGS_CLIENT_SECRET')
-        self.redirect_uri = 'http://localhost/oidc_callback'
+        self.redirect_uri = config.get('AGS_CLIENT_CALLBACK_URL')
         self.id_token_signed_response_alg = 'RS256'
         self.clock_skew = 60
         self._keys = {}
@@ -154,6 +169,10 @@ class AuthorizationCodeFlow(object):
 
     def request_token(self, authz_code):
         req = self.token_request(authz_code)
+        logger.debug("token request")
+        logger.debug("url: {0.full_url}".format(req))
+        logger.debug("data: {0.data}".format(req))
+        logger.debug("headers: {0.headers}".format(req))
         return requests.post(
             req.full_url,
             data=req.data,

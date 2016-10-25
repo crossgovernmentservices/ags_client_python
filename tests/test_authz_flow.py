@@ -26,7 +26,8 @@ def config():
         'AGS_BROKER_TOKEN_ENDPOINT': '/token',
         'AGS_BROKER_JWKS_URI': '/keys',
         'AGS_CLIENT_ID': 'test-client',
-        'AGS_CLIENT_SECRET': 'test-secret'
+        'AGS_CLIENT_SECRET': 'test-secret',
+        'AGS_CLIENT_AUTHENTICATED_URLS': 'foo'
     }
 
 
@@ -197,7 +198,7 @@ class TestAuthzCodeFlow(object):
             flow.authentication_request(**params)
 
     def test_client_sends_request_to_authz_server(self, wsgi_request, flow):
-        status, headers, response = wsgi_request('/')
+        status, headers, response = wsgi_request('/foo')
         auth_url = flow.authentication_request().full_url
         assert status == '302 Found'
         assert ('Location', auth_url) in headers

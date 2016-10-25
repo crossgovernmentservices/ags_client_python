@@ -3,10 +3,12 @@
 AGS Client class
 """
 
+import logging
+import os
 import re
 from urllib.parse import parse_qs
 
-from cached_property import threaded_cached_property
+from cached_property import cached_property, threaded_cached_property
 
 from ags import oidc
 
@@ -16,14 +18,22 @@ class Client(object):
     def __init__(self, app):
         self.app = app
         self.config = {}
+        for k in os.environ:
+            if k.startswith('AGS_'):
+                self.config[k] = os.environ[k]
 
     def __call__(self, environ, start_response):
         path = self.request_path(environ)
 
         if self.callback_url_pattern.match(path):
+            self.logger.debug('{} matches callback url pattern {}'.format(
+                path, self.callback_url_pattern))
             return self.callback(environ, start_response)
 
         if self.requires_authentication(path):
+            self.logger.debug('{} requires authentication'.format(path))
+            self.logger.debug('redirecting to broker {}'.format(
+                self.authentication_request))
             return self.redirect(start_response, self.authentication_request)
 
         return self.app(environ, start_response)
@@ -31,10 +41,14 @@ class Client(object):
     def callback(self, environ, start_response):
         code = self.authorization_code(environ)
 
+        self.logger.debug('received authz code {}'.format(code))
+
         if code is None:
             return self.error('400 Bad Request', 'Missing code')
 
+        self.logger.debug('making token request')
         token_response = self.token_request(code)
+        self.logger.debug('received token response {}'.format(token_response))
         self.verify_id_token(token_response['id_token'])
         environ.update({'oidc_token_data': token_response})
 
@@ -45,12 +59,12 @@ class Client(object):
         pass
 
     def requires_authentication(self, path):
-        for url_pattern in self.whitelisted_urls:
+        for url_pattern in self.authenticated_urls:
 
             if url_pattern.match(path):
-                return False
+                return True
 
-        return True
+        return False
 
     @property
     def authentication_request(self):
@@ -74,8 +88,20 @@ class Client(object):
     def flow(self):
         return oidc.AuthorizationCodeFlow(self.config)
 
+    @cached_property
+    def logger(self):
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+        return logger
+
     def redirect(self, start_response, url):
-        return start_response('302 Found', [('Location', url)])
+        start_response('302 Found', [('Location', url)])
+        return [b'']
 
     def request_path(self, environ):
         return environ.get('PATH_INFO', '').lstrip('/')
@@ -84,6 +110,8 @@ class Client(object):
         return self.flow.request_token(code)
 
     @threaded_cached_property
-    def whitelisted_urls(self):
-        patterns = self.config.get('AGS_CLIENT_WHITELISTED_URLS', [])
+    def authenticated_urls(self):
+        patterns = self.config.get('AGS_CLIENT_AUTHENTICATED_URLS', '')
+        patterns = patterns.split(',')
+        patterns = ['^{}/?$'.format(p.strip()) for p in patterns]
         return list(map(re.compile, patterns))
