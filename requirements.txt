@@ -7,3 +7,4 @@ pytest_spec
 requests
 python-jose
 cached-property
+beaker

@@ -3,6 +3,7 @@
 Test OIDC Authorization Code Flow
 """
 
+from base64 import urlsafe_b64encode as b64encode
 import mock
 from textwrap import dedent
 from urllib.parse import parse_qs, urlparse
@@ -84,6 +85,13 @@ def post():
 
 @pytest.fixture
 def callback(post, wsgi_request):
+    post.return_value.json.return_value = {
+        'access_token': 'test-access-token',
+        'token_type': 'Bearer',
+        'expires_in': 3600,
+        'refresh_token': 'test-refresh-token',
+        'id_token': 'test-id-token'
+    }
     return wsgi_request('/oidc_cb?code=test-code')
 
 
@@ -199,13 +207,16 @@ class TestAuthzCodeFlow(object):
 
     def test_client_sends_request_to_authz_server(self, wsgi_request, flow):
         status, headers, response = wsgi_request('/foo')
-        auth_url = flow.authentication_request().full_url
+        state = '{"next_url": "http://127.0.0.1/foo"}'.encode('utf-8')
+        auth_url = flow.authentication_request(state=b64encode(state)).full_url
         assert status == '302 Found'
         assert ('Location', auth_url) in headers
 
     def test_client_receives_authz_code(self, callback, flow):
         status, headers, response = callback
-        auth_url = flow.authentication_request().full_url
+        state = '{"next_url": "http://127.0.0.1/oidc_cb?code=test-code"}'
+        state = b64encode(state.encode('utf-8'))
+        auth_url = flow.authentication_request(state=state).full_url
         assert ('Location', auth_url) not in headers
 
     @pytest.mark.xfail
@@ -214,6 +225,7 @@ class TestAuthzCodeFlow(object):
 
     def test_client_requests_token_with_authz_code(self, post, callback, flow):
         req = flow.token_request('test-code')
+        post.return_value.json.return_value = {}
         post.assert_called_with(
             req.full_url,
             data=req.data,
