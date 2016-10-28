@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from base64 import b64encode
+from base64 import urlsafe_b64encode
+import datetime
 import logging
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request
@@ -14,8 +15,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-ch.setFormatter(formatter)
+ch.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
 logger.addHandler(ch)
 
 
@@ -81,7 +81,7 @@ class TokenRequest(Request):
     def __init__(self, url, code, **kwargs):
 
         auth = '{client_id}:{client_secret}'.format(**kwargs).encode('utf-8')
-        auth = 'Basic {}'.format(b64encode(auth).decode('latin1'))
+        auth = 'Basic {}'.format(urlsafe_b64encode(auth).decode('latin1'))
 
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -111,7 +111,7 @@ class AuthorizationCodeFlow(object):
         self.client_secret = config.get('AGS_CLIENT_SECRET')
         self.redirect_uri = config.get('AGS_CLIENT_CALLBACK_URL')
         self.id_token_signed_response_alg = 'RS256'
-        self.clock_skew = 60
+        self.clock_skew = datetime.timedelta(seconds=60)
         self._keys = {}
 
     @property

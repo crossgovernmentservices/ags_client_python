@@ -1,8 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import datetime
+from datetime import datetime
+import logging
 
 from jose import jwt
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+logger.addHandler(ch)
 
 
 class InvalidIdToken(Exception):
@@ -13,6 +22,7 @@ class IdToken(object):
 
     def __init__(self, token, flow, **kwargs):
         self.token = token
+        self.header = {}
         self.flow = flow
         self.auth_request_nonce = kwargs.get('nonce')
         self.max_age = kwargs.get('max_age')
@@ -21,11 +31,11 @@ class IdToken(object):
     def is_valid(self):
         self.decode()
 
-        if self.token['iss'] not in self.flow.valid_issuers:
+        if self.token['iss'] != self.flow.broker_url:
             raise InvalidIdToken("Non-trusted issuer: {iss}".format(
                 **self.token))
 
-        if isinstance(self.aud, list):
+        if isinstance(self.token['aud'], list):
 
             if self.flow.client_id not in self.token['aud']:
                 raise InvalidIdToken("Not in valid audiences")
@@ -39,16 +49,16 @@ class IdToken(object):
         if 'azp' in self.token and self.token['azp'] != self.flow.client_id:
             raise InvalidIdToken("Not authorized party")
 
-        if self.token['alg'] != self.flow.id_token_signed_response_alg:
+        if self.header['alg'] != self.flow.id_token_signed_response_alg:
             raise InvalidIdToken("Algorithm mismatch")
 
-        if self.token['exp'] < datetime.utcnow():
+        if self.token['exp'] < datetime.utcnow() - self.flow.clock_skew:
             raise InvalidIdToken("Token expired")
 
-        if self.token['iat'] < datetime.utcnow() - self.flow.clock_skew:
+        if self.token['iat'] < datetime.utcnow():
             raise InvalidIdToken("Token issued in past")
 
-        if self.nonce != self.auth_request_nonce:
+        if self.token.get('nonce') != self.auth_request_nonce:
             raise InvalidIdToken("Invalid nonce")
 
         self.check_auth_context_class_reference()
@@ -59,12 +69,21 @@ class IdToken(object):
 
     def decode(self):
         if not self._decoded:
-            header = jwt.get_unverified_header(self.token)
-            key = self.flow.get_key(header['kid'])
-            client_id = self.flow.client_id
-            self.token = jwt.decode(self.token, key, audience=client_id)
+            logger.debug('DECODING ID TOKEN')
+            self.header = jwt.get_unverified_header(self.token)
+            logger.debug('header {}'.format(self.header))
+            key = self.flow.get_key(self.header['kid'])
+            self.token = jwt.decode(
+                self.token,
+                key,
+                'RS256',
+                audience=self.flow.client_id,
+                issuer=self.flow.broker_url
+            )
             self.token['exp'] = datetime.fromtimestamp(int(self.token['exp']))
-            self.token['iat'] = datetime.fromtimestamp(int(self.token['iat']))
+            if 'iat' in self.token:
+                self.token['iat'] = datetime.fromtimestamp(
+                    int(self.token['iat']))
             if 'auth_time' in self.token:
                 self.token['auth_time'] = datetime.fromtimestamp(
                     int(self.token['auth_time']))

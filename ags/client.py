@@ -6,6 +6,7 @@ AGS Client class
 from base64 import (
     urlsafe_b64decode as b64decode,
     urlsafe_b64encode as b64encode)
+from functools import wraps
 import json
 import logging
 import os
@@ -17,6 +18,36 @@ from beaker.middleware import SessionMiddleware
 from cached_property import cached_property, threaded_cached_property
 
 from ags import oidc
+
+
+class HttpError(Exception):
+
+    def __init__(self, status, message=None):
+        self.status = status
+        self.message = message
+
+    def response(self, environ, start_response):
+        start_response(self.status, [
+            ('Content-Type', 'text/plain; charset=utf-8')])
+        if self.message:
+            return [self.message.encode('utf-8')]
+
+
+def handle_errors(fn):
+
+    @wraps(fn)
+    def handler(self, environ, start_response):
+        try:
+            return fn(self, environ, start_response)
+
+        except HttpError as error:
+            return error.response(environ, start_response)
+
+        except Exception as exc:
+            error = HttpError('500 Internal Error', str(exc))
+            return error.response(environ, start_response)
+
+    return handler
 
 
 class Client(object):
@@ -39,7 +70,10 @@ class Client(object):
     def __call__(self, environ, start_response):
         return self.beaker(environ, start_response)
 
+    @handle_errors
     def wsgi_app(self, environ, start_response):
+
+        self.load_auth_data(environ)
 
         if self.should_authenticate(environ):
             authentication_request = self.authentication_request(environ)
@@ -54,6 +88,7 @@ class Client(object):
 
         return self.app(environ, start_response)
 
+    @handle_errors
     def callback(self, environ, start_response):
         code = self.authorization_code(environ)
         state = self.callback_state(environ)
@@ -62,25 +97,26 @@ class Client(object):
         self.logger.debug('received state {}'.format(state))
 
         if code is None:
-            return self.error('400 Bad Request', 'Missing code')
+            raise HttpError('400 Bad Request', 'Missing code')
 
         token_response = self.token_request(code)
         self.logger.debug('received token response {}'.format(token_response))
-        self.verify_id_token(token_response['id_token'])
+
+        id_token = oidc.token.IdToken(token_response['id_token'], self.flow)
+        id_token.is_valid()
 
         session = environ['beaker.session']
-        session['authenticated'] = True
-        session['oidc_token_data'] = token_response
-        session.save()
+        session['auth_data'] = {
+            'id_token': id_token.token,
+            'access_token': token_response['access_token']}
+        self.logger.debug('saved session {}'.format(session))
+
+        next_url = '/'
 
         if state and 'next_url' in state:
-            return self.redirect(start_response, state['next_url'])
+            next_url = state['next_url']
 
-        return self.app(environ, start_response)
-
-    def verify_id_token(self, id_token):
-        # TODO
-        pass
+        return self.redirect(start_response, next_url)
 
     def authentication_request(self, environ):
         state = self.state(environ)
@@ -104,17 +140,19 @@ class Client(object):
         path = self.config.get('AGS_CLIENT_CALLBACK_PATH', 'oidc_cb')
         return re.compile(r'^{}/?$'.format(path))
 
-    def error(self, start_response, status, message=None):
-        start_response(status, [('Content-Type', 'text/plain; charset=utf-8')])
-        if message:
-            return [message.encode('utf-8')]
-
     @property
     def flow(self):
         return oidc.AuthorizationCodeFlow(self.config)
 
     def is_callback(self, environ):
         return self.callback_url_pattern.match(self.request_path(environ))
+
+    def load_auth_data(self, environ):
+        session = environ.get('beaker.session')
+        if session and session.get('auth_data', False):
+            self.logger.debug('loading auth data from session: {}'.format(
+                session['auth_data']))
+            environ['auth_data'] = session['auth_data']
 
     @cached_property
     def logger(self):
@@ -166,10 +204,8 @@ class Client(object):
         return self.flow.request_token(code)
 
     def user_authenticated(self, environ):
-        session = environ.get('beaker.session')
-
-        if session and 'authenticated' in session:
-            return session['authenticated']
+        session = environ.get('beaker.session', {})
+        return session and session.get('auth_data', False)
 
     @threaded_cached_property
     def authenticated_urls(self):

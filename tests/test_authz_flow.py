@@ -4,12 +4,21 @@ Test OIDC Authorization Code Flow
 """
 
 from base64 import urlsafe_b64encode as b64encode
+import calendar
+import datetime
 import mock
-from textwrap import dedent
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import demo_app
 from wsgiref.util import setup_testing_defaults
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat)
+from jose import jwt
+from jose.utils import base64url_encode
 import pytest
 
 import ags
@@ -59,13 +68,14 @@ def wsgi_stack(config):
 def wsgi_request(wsgi_stack):
     outer, middleware, inner = wsgi_stack
 
-    def make_request(url, data=None, headers=[]):
+    def make_request(url, data=None, headers={}):
         path, _, query = url.partition('?')
         environ = {
             'PATH_INFO': path,
             'QUERY_STRING': query,
             'REQUEST_METHOD': 'GET' if data is None else 'POST'}
         setup_testing_defaults(environ)
+        environ.update(headers)
 
         start_response = mock.MagicMock()
         response = outer(environ, start_response)
@@ -97,47 +107,65 @@ def callback(post, wsgi_request):
 
 @pytest.fixture
 def test_key():
+    return rsa.generate_private_key(65537, 1024, default_backend())
+
+
+@pytest.fixture
+def test_jwk(test_key):
     return {
-        "kid": "test-key",
-        "kty": "RSA",
-        "alg": "RS256",
-        "use": "sig",
-        "e": "AQAB",
-        "n": dedent("""
-            xQvzdm6pSJis1-4k8_Wi_B4FxWhWJmKExOd110knU_aQ5i7uBteGarQhdA4HIiBXOz
-            Yxk1PQnSilZ-zF4SDmSfnyvv_IU8bcznp129_ASGqcwCe32KU1Mm4BS5zp3ywdYGxx
-            oXw1kRp8bKUJEunVjzOI0H7n4_miNfYfHVYmlZpsWd2IptqRpEGftCNvF7tFkC1fuq
-            xWzO5-iM-6ToAGo9WZQeRiXqffKF3D73Y1pMdE04Ok_75qqQuy5i8G6VAMfljckQRY
-            OmkANZaLNX7wfRhUdPq6qauoU5sx5EWc3gpDcsmZvoNnRRYnWB1XGHCrg3LyiLSuxh
-            t9sk3oEhyIFw==
-        """).replace("\n", '')
+        'kid': 'test-key',
+        'kty': 'RSA',
+        'alg': 'RS256',
+        'use': 'sig',
+        'e': 'AQAB',
+        'n': base64url_encode(
+            test_key.public_key().public_numbers().n.to_bytes(
+                128, byteorder='little')
+        ).decode('utf-8')
     }
 
 
 @pytest.fixture
-def id_token():
-    token = dedent("""
-        eyJhbGciOiJSUzI1NiIsImtpZCI6IjRmYjE1NjVlYWRlNTFiOWMzYTUyYmU0NDI0YjNjY
-        TkxYzM4ZjUzNjUiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiI4cHJZb1p5bTB6a3Q2WnpUSWJ
-        YYUZCUXZ0cldpMkE4eG1kQzlXRXozaTE0PUBsb2NhbGhvc3QiLCJlbWFpbCI6Imtlbi50
-        c2FuZ0BkaWdpdGFsLmNhYmluZXQtb2ZmaWNlLmdvdi51ayIsImVtYWlsX3ZlcmlmaWVkI
-        jp0cnVlLCJleHAiOjE0NzM4OTYzNjYsImlhdCI6MTQ3Mzg1MzE2NiwiaXNzIjoiaHR0cD
-        ovL2RleC5leGFtcGxlLmNvbTo1NTU2IiwibmFtZSI6IiIsInN1YiI6IjZjN2E5ZjQ1LTd
-        mNTctNGQ5MS1iZTBlLTI4NjY3M2EyOGM2ZiJ9.tAVC2OD70vuTiARWoSagm37xQcWZ3o8
-        W9jLvW8mHG39MgOp6GHGhyJuTgvkciDqi10SqHMcaGH9jSZepVUkQBNYPKejp9VZ3iiXy
-        q731ckzoY93q5TvSOqjkoG7_HxXCkD5RX2F6XdTq_Se231TSEgWPxYl3ycLzKtNMeD5o3
-        Aq8z_ypzgl7kQmEEdZWPSAcQr7-6IIHJ38UgDZfPhTYtUB4f_abgXXcuQV10uWkXBMdOz
-        fM2s9ByexSAvL2-HVs_jtdC3C-Rwu_05yKfduVO5yiNBxoyrkv2yZgEhfKNh1WLYj2cb0
-        8cs4iw4u8QSEOSEzL5Gy1wXPdL78aoaqUYg
-    """).replace("\n", '')
-    return IdToken(token, flow)
+def id_token(config, test_key, flow):
+    headers = {
+        'kid': 'test-key'
+    }
+
+    def tstamp(dt):
+        return calendar.timegm(dt.utctimetuple())
+
+    iat = datetime.datetime.utcnow()
+    exp = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+
+    pem = test_key.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode('utf-8')
+
+    def make_id_token(claims={}):
+        payload = {
+            'iss': config['AGS_BROKER_URL'],
+            'sub': 'test-id',
+            'aud': config['AGS_CLIENT_ID'],
+            'iat': iat,
+            'exp': exp,
+            'email': 'test-user@example.com'
+        }
+        payload.update(claims)
+
+        token = jwt.encode(payload, pem, jwt.ALGORITHMS.RS256, headers=headers)
+        return IdToken(token, flow)
+
+    return make_id_token
 
 
 @pytest.yield_fixture
-def keys(test_key):
-    with mock.patch('ags.oidc.authz_flow.requests.get') as mock_get:
-        mock_get.return_value.json.return_value = {"keys": [test_key]}
-        yield mock_get
+def keys(test_jwk):
+    # XXX - verifying test signatures fails, but it's not important
+    with mock.patch('jose.jws._sig_matches_keys') as sig_match:
+        sig_match.return_value = True
+
+        with mock.patch('ags.oidc.authz_flow.requests.get') as mock_get:
+            mock_get.return_value.json.return_value = {"keys": [test_jwk]}
+            yield mock_get
 
 
 class TestAuthzCodeFlow(object):
@@ -243,6 +271,41 @@ class TestAuthzCodeFlow(object):
         assert token_response['id_token'] == 'test-id-token'
         assert token_response['access_token'] == 'test-access-token'
 
-    @pytest.mark.xfail
-    def test_client_validates_id_token(self, id_token):
-        id_token.is_valid()
+    def test_client_validates_id_token(self, keys, id_token):
+            id_token().is_valid()
+
+    def test_client_passes_tokens_in_environ(
+            self, keys, wsgi_stack, post, wsgi_request, id_token):
+
+        outer, middleware, inner = wsgi_stack
+
+        post.return_value.json.return_value = {
+            'access_token': 'test-access-token',
+            'token_type': 'Bearer',
+            'expires_in': 3600,
+            'refresh_token': 'test-refresh-token',
+            'id_token': id_token().token
+        }
+
+        status, headers, response = wsgi_request('/oidc_cb?code=test-code')
+
+        redirect_urls = [val for key, val in headers if key == 'Location']
+        assert redirect_urls[0] == '/'
+
+        req_headers = {}
+        cookies = []
+        for key, val in headers:
+            if key == 'Set-cookie':
+                cookie, meta = val.split(';', 1)
+                cookies.append(cookie.strip())
+        req_headers['HTTP_COOKIE'] = '; '.join(cookies)
+
+        status, headers, response = wsgi_request(
+            redirect_urls[0],
+            headers=req_headers)
+
+        environ = inner.mock_calls[0][1][0]
+
+        assert 'auth_data' in environ
+        assert 'id_token' in environ['auth_data']
+        assert isinstance(environ['auth_data']['id_token'], dict)
