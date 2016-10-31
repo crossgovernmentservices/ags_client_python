@@ -55,8 +55,9 @@ class IdToken(object):
         if self.token['exp'] < datetime.utcnow() - self.flow.clock_skew:
             raise InvalidIdToken("Token expired")
 
-        if self.token['iat'] < datetime.utcnow():
-            raise InvalidIdToken("Token issued in past")
+        if self.id_token_too_old():
+            raise InvalidIdToken(
+                "Token issued in past: {}".format(self.token['iat']))
 
         if self.token.get('nonce') != self.auth_request_nonce:
             raise InvalidIdToken("Invalid nonce")
@@ -95,3 +96,7 @@ class IdToken(object):
         asserted Claim Value is appropriate.
         """
         pass
+
+    def id_token_too_old(self):
+        return self.flow.id_token_max_age and \
+            self.token['iat'] < datetime.utcnow() - self.flow.id_token_max_age

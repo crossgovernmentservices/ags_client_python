@@ -112,6 +112,7 @@ class AuthorizationCodeFlow(object):
         self.redirect_uri = config.get('AGS_CLIENT_CALLBACK_URL')
         self.id_token_signed_response_alg = 'RS256'
         self.clock_skew = datetime.timedelta(seconds=60)
+        self.id_token_max_age = None
         self._keys = {}
 
     @property
