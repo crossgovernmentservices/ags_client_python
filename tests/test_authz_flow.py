@@ -6,10 +6,9 @@ Test OIDC Authorization Code Flow
 from base64 import urlsafe_b64encode as b64encode
 import calendar
 import datetime
+from http.cookies import SimpleCookie
 import mock
 from urllib.parse import parse_qs, urlparse
-from wsgiref.simple_server import demo_app
-from wsgiref.util import setup_testing_defaults
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -21,70 +20,9 @@ from jose import jwt
 from jose.utils import base64url_encode
 import pytest
 
-import ags
 from ags.oidc import (
     AuthenticationRequestError,
-    AuthorizationCodeFlow,
     IdToken)
-
-
-@pytest.fixture
-def config():
-    return {
-        'AGS_BROKER_URL': 'http://broker',
-        'AGS_BROKER_AUTH_ENDPOINT': '/auth',
-        'AGS_BROKER_TOKEN_ENDPOINT': '/token',
-        'AGS_BROKER_JWKS_URI': '/keys',
-        'AGS_CLIENT_ID': 'test-client',
-        'AGS_CLIENT_SECRET': 'test-secret',
-        'AGS_CLIENT_AUTHENTICATED_URLS': 'foo'
-    }
-
-
-@pytest.fixture
-def flow(config):
-    return AuthorizationCodeFlow(config)
-
-
-@pytest.fixture
-def wsgi_stack(config):
-    inner = mock.MagicMock()
-    inner.side_effect = demo_app
-
-    middleware = ags.Client(inner)
-    middleware.config = config
-
-    outer = mock.MagicMock()
-
-    def call_client(environ, start_response):
-        return middleware(environ, start_response)
-
-    outer.side_effect = call_client
-
-    return outer, middleware, inner
-
-
-@pytest.fixture
-def wsgi_request(wsgi_stack):
-    outer, middleware, inner = wsgi_stack
-
-    def make_request(url, data=None, headers={}):
-        path, _, query = url.partition('?')
-        environ = {
-            'PATH_INFO': path,
-            'QUERY_STRING': query,
-            'REQUEST_METHOD': 'GET' if data is None else 'POST'}
-        setup_testing_defaults(environ)
-        environ.update(headers)
-
-        start_response = mock.MagicMock()
-        response = outer(environ, start_response)
-        calls = start_response.mock_calls
-        status = calls[0][1][0]
-        headers = calls[0][1][1]
-        return status, headers, response
-
-    return make_request
 
 
 @pytest.yield_fixture
@@ -94,7 +32,7 @@ def post():
 
 
 @pytest.fixture
-def callback(post, wsgi_request):
+def callback(post, wsgi_request, id_token):
     post.return_value.json.return_value = {
         'access_token': 'test-access-token',
         'token_type': 'Bearer',
@@ -102,7 +40,8 @@ def callback(post, wsgi_request):
         'refresh_token': 'test-refresh-token',
         'id_token': 'test-id-token'
     }
-    return wsgi_request('/oidc_cb?code=test-code')
+    req_headers = {'HTTP_COOKIE': 'ags_feature_switch_active=1'}
+    return wsgi_request('/oidc_cb?code=test-code', headers=req_headers)
 
 
 @pytest.fixture
@@ -234,7 +173,8 @@ class TestAuthzCodeFlow(object):
             flow.authentication_request(**params)
 
     def test_client_sends_request_to_authz_server(self, wsgi_request, flow):
-        status, headers, response = wsgi_request('/foo')
+        req_headers = {'HTTP_COOKIE': 'ags_feature_switch_active=1'}
+        status, headers, response = wsgi_request('/foo', headers=req_headers)
         state = '{"next_url": "http://127.0.0.1/foo"}'.encode('utf-8')
         auth_url = flow.authentication_request(state=b64encode(state)).full_url
         assert status == '302 Found'
@@ -287,18 +227,22 @@ class TestAuthzCodeFlow(object):
             'id_token': id_token().token
         }
 
-        status, headers, response = wsgi_request('/oidc_cb?code=test-code')
+        cookie = SimpleCookie()
+        cookie['ags_feature_switch_active'] = '1'
+
+        req_headers = {'HTTP_COOKIE': 'ags_feature_switch_active=1'}
+        status, headers, response = wsgi_request(
+            '/oidc_cb?code=test-code', headers=req_headers)
 
         redirect_urls = [val for key, val in headers if key == 'Location']
         assert redirect_urls[0] == '/'
 
-        req_headers = {}
-        cookies = []
         for key, val in headers:
             if key == 'Set-cookie':
-                cookie, meta = val.split(';', 1)
-                cookies.append(cookie.strip())
-        req_headers['HTTP_COOKIE'] = '; '.join(cookies)
+                cookie.load(val)
+
+        req_headers['HTTP_COOKIE'] = ';'.join(
+            m.OutputString() for m in cookie.values())
 
         status, headers, response = wsgi_request(
             redirect_urls[0],

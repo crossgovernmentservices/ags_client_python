@@ -7,6 +7,7 @@ from base64 import (
     urlsafe_b64decode as b64decode,
     urlsafe_b64encode as b64encode)
 from functools import wraps
+from http.cookies import SimpleCookie, Morsel
 import json
 import logging
 import os
@@ -72,6 +73,12 @@ class Client(object):
 
     @handle_errors
     def wsgi_app(self, environ, start_response):
+
+        if self.should_toggle_feature_switch(environ):
+            return self.toggle_feature_switch(environ, start_response)
+
+        if not self.feature_switch_active(environ):
+            return self.app(environ, start_response)
 
         self.load_auth_data(environ)
 
@@ -140,6 +147,16 @@ class Client(object):
         path = self.config.get('AGS_CLIENT_CALLBACK_PATH', 'oidc_cb')
         return re.compile(r'^{}/?$'.format(path))
 
+    def feature_switch_active(self, environ):
+        cookie = SimpleCookie()
+        cookie.load(environ.get('HTTP_COOKIE', ''))
+        active = cookie.get('ags_feature_switch_active', Morsel()).value
+        return active == '1'
+
+    @property
+    def feature_switch_url(self):
+        return re.compile(r'^ags-toggle-feature-switch/?$')
+
     @property
     def flow(self):
         return oidc.AuthorizationCodeFlow(self.config)
@@ -195,10 +212,27 @@ class Client(object):
 
         return False
 
+    def should_toggle_feature_switch(self, environ):
+        return self.feature_switch_url.match(self.request_path(environ))
+
     def state(self, environ):
         return b64encode(json.dumps({
             'next_url': request_uri(environ)
         }).encode('utf-8'))
+
+    def toggle_feature_switch(self, environ, start_response):
+        active = not self.feature_switch_active(environ)
+        self.logger.debug('setting feature switch activated {}'.format(active))
+
+        cookie = SimpleCookie()
+        cookie['ags_feature_switch_active'] = active and '1' or '0'
+
+        headers = [('Content-Type', 'text/plain; charset=utf-8')]
+        headers.extend(
+            ('Set-cookie', val.OutputString()) for val in cookie.values())
+        start_response('200 OK', headers)
+
+        return 'AGS Feature Switch active: {}'.format(active)
 
     def token_request(self, code):
         return self.flow.request_token(code)
