@@ -232,7 +232,7 @@ class Client(object):
             ('Set-cookie', val.OutputString()) for val in cookie.values())
         start_response('200 OK', headers)
 
-        return 'AGS Feature Switch active: {}'.format(active)
+        return ['AGS Feature Switch active: {}'.format(active).encode('utf-8')]
 
     def token_request(self, code):
         return self.flow.request_token(code)
