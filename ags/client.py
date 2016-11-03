@@ -84,14 +84,13 @@ class Client(object):
 
         if self.should_authenticate(environ):
             authentication_request = self.authentication_request(environ)
-            self.logger.debug('redirecting to broker {}'.format(
-                authentication_request))
             return self.redirect(start_response, authentication_request)
 
         if self.is_callback(environ):
-            self.logger.debug('{} matches callback url pattern {}'.format(
-                self.request_path(environ), self.callback_url_pattern))
             return self.callback(environ, start_response)
+
+        if self.is_sign_out(environ):
+            return self.sign_out(environ, start_response)
 
         return self.app(environ, start_response)
 
@@ -100,14 +99,10 @@ class Client(object):
         code = self.authorization_code(environ)
         state = self.callback_state(environ)
 
-        self.logger.debug('received authz code {}'.format(code))
-        self.logger.debug('received state {}'.format(state))
-
         if code is None:
             raise HttpError('400 Bad Request', 'Missing code')
 
         token_response = self.token_request(code)
-        self.logger.debug('received token response {}'.format(token_response))
 
         id_token = oidc.token.IdToken(token_response['id_token'], self.flow)
         id_token.is_valid()
@@ -116,7 +111,6 @@ class Client(object):
         session['auth_data'] = {
             'id_token': id_token.token,
             'access_token': token_response['access_token']}
-        self.logger.debug('saved session {}'.format(session))
 
         next_url = '/'
 
@@ -124,6 +118,18 @@ class Client(object):
             next_url = state['next_url']
 
         return self.redirect(start_response, next_url)
+
+    @handle_errors
+    def sign_out(self, environ, start_response):
+        session = environ['beaker.session']
+
+        if 'auth_data' in session:
+            del session['auth_data']
+
+        if 'auth_data' in environ:
+            del environ['auth_data']
+
+        return self.app(environ, start_response)
 
     def authentication_request(self, environ):
         state = self.state(environ)
@@ -164,23 +170,13 @@ class Client(object):
     def is_callback(self, environ):
         return self.callback_url_pattern.match(self.request_path(environ))
 
+    def is_sign_out(self, environ):
+        return self.signout_url_pattern.match(self.request_path(environ))
+
     def load_auth_data(self, environ):
         session = environ.get('beaker.session')
         if session and session.get('auth_data', False):
-            self.logger.debug('loading auth data from session: {}'.format(
-                session['auth_data']))
             environ['auth_data'] = session['auth_data']
-
-    @cached_property
-    def logger(self):
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(levelname)s - %(message)s')
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
-        return logger
 
     def redirect(self, start_response, url):
         start_response('302 Found', [('Location', url)])
@@ -195,7 +191,6 @@ class Client(object):
         for url_pattern in self.authenticated_urls:
 
             if url_pattern.match(path):
-                self.logger.debug('{} requires authentication'.format(path))
                 return True
 
         return False
@@ -205,7 +200,6 @@ class Client(object):
         if self.requires_authentication(environ):
 
             if self.user_authenticated(environ):
-                self.logger.debug('user already authenticated')
                 return False
 
             return True
@@ -215,6 +209,11 @@ class Client(object):
     def should_toggle_feature_switch(self, environ):
         return self.feature_switch_url.match(self.request_path(environ))
 
+    @property
+    def signout_url_pattern(self):
+        path = self.config.get('AGS_CLIENT_SIGN_OUT_PATH', 'sign-out')
+        return re.compile(r'^{}/$'.format(path))
+
     def state(self, environ):
         return b64encode(json.dumps({
             'next_url': request_uri(environ)
@@ -222,7 +221,6 @@ class Client(object):
 
     def toggle_feature_switch(self, environ, start_response):
         active = not self.feature_switch_active(environ)
-        self.logger.debug('setting feature switch activated {}'.format(active))
 
         cookie = SimpleCookie()
         cookie['ags_feature_switch_active'] = active and '1' or '0'
