@@ -4,7 +4,7 @@ Accessing GaaP Services Client
 .. image:: https://travis-ci.org/crossgovernmentservices/ags_client_python.svg?branch=master
   :alt: Test result
 
-Python package providing an API client for accessing GaaP services.
+Python package providing an WSGI middleware for accessing GaaP services.
 
 
 Installation
@@ -22,7 +22,7 @@ Registration
 ~~~~~~~~~~~~
 
 You will need a *client ID* and *client secret* from the GaaP Identity Broker.
-You can get these by emailing with a brief summary of:
+You can't get these yet, but soon will by emailing us with a brief summary of:
 
 * who you are
 * what project you're going to be using it on
@@ -31,72 +31,66 @@ You can get these by emailing with a brief summary of:
 Quick Start
 ~~~~~~~~~~~
 
-In your code:
+Flask
++++++
+
+For example: given your Flask app is defined in ``webservice.py`` in a variable
+named ``app``, create a file called ``wsgi.py``:
 
 .. code-block:: python
 
-    >>> from ags_client import BrokerClient
+    import ags
 
+    from webservice import app
+
+
+    app.wsgi_app = ags.Client(app.wsgi_app)
+
+Then start your app with a WSGI server such as Gunicorn or uWSGI. Eg:
+
+.. code-block:: shell
+
+    gunicorn wsgi:app
 
 
 Configuration
 -------------
 
-Apart from the client ID and secret, there is only one other parameter the API
-client needs - ``broker_url``.
+The middleware looks for certain environment variables for settings. The
+following variables are **REQUIRED**:
 
-Explicit ``broker_url``
-~~~~~~~~~~~~~~~~~~~~~~~
+``AGS_CLIENT_ID``
+    The client ID that you have been issued
 
-You can set the broker_url explicitly by passing it to the ``Client``
-constructor
+``AGS_CLIENT_SECRET``
+    The client secret that you have been issued
 
-.. code-block:: python
+``AGS_CLIENT_AUTHENTICATED_URLS``
+    Comma separated list of paths in your web application that require
+    authentication. May include regular expressions.
 
-    # create a client
-    client = ags_client.Client(broker_url="https://some.dom.ain")
+The following variables are **OPTIONAL**:
 
-or by setting it on an existing client, like this
+``AGS_CLIENT_SIGN_OUT_PATH``
+    Path to sign out view in your application - default: ``sign-out``
 
-.. code-block:: python
+The following variables can be used to override defaults, but usually should
+not be used:
 
-    client = ags_client.Client()
-    client.broker_url = "https://some.dom.ain"
+``AGS_BROKER_AUTH_ENDPOINT``
+    The path to the OIDC authentication endpoint on the broker
 
-Implicit ``broker_url``
-~~~~~~~~~~~~~~~~~~~~~~~
+``AGS_BROKER_JWKS_URI``
+    The path to the OIDC jwks_uri endpoint on the broker
 
-If you don't pass an ``broker_url`` to the constructor, it will attempt to infer
-one from the environment. The client has a built-in mapping of environment names
-to URLs.
+``AGS_BROKER_TOKEN_ENDPOINT``
+    The path to the OIDC token endpoint on the broker
 
-.. code-block:: python
+``AGS_BROKER_URL``
+    The URL of the OIDC identity broker
 
-    >>> ags_client.Client.broker_urls
-    {
-        'development': 'http://localhost:5556',
-        'test': 'http://localhost:5556',
-        'staging': 'http://dex.identity-k8s.civilservice.digital',
-        'production': 'http://dex.identity-k8s.civilservice.digital'
-    }
-
-It will use the following rules to infer the URL:
-
-1. If you pass an ``env`` parameter to the constructor (eg:
-   ``client = ags_client.Client(env="staging")``), it will
-   use that as a reference into the ``broker_urls`` mapping.
-2. If you have ``DJANGO_SETTINGS_MODULE`` set in your environment, it will try
-   to find the following settings in that module::
-
-    AGS_BROKER_URL
-    AGS_CLIENT_ID
-    AGS_CLIENT_SECRET
-3. If you have the following environment variables set, it will use them::
-
-    AGS_BROKER_URL
-    AGS_CLIENT_ID
-    AGS_CLIENT_SECRET
-3. Otherwise it will default to ``development``
+``AGS_CLIENT_CALLBACK_PATH``
+    Overrides default OIDC callback path
 
 
 Support
