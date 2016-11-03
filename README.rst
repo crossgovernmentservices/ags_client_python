@@ -4,11 +4,13 @@ Accessing GaaP Services Client
 .. image:: https://travis-ci.org/crossgovernmentservices/ags_client_python.svg?branch=master
   :alt: Test result
 
-Python package providing an WSGI middleware for accessing GaaP services.
+Python package providing a WSGI middleware for accessing GaaP services.
 
 
 Installation
 ------------
+
+You can't do this yet, but soon will.
 
 .. code-block:: bash
 
