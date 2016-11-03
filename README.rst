@@ -31,8 +31,7 @@ You can't get these yet, but soon will by emailing us with a brief summary of:
 Quick Start
 ~~~~~~~~~~~
 
-Flask
-+++++
+**Flask**
 
 For example: given your Flask app is defined in ``webservice.py`` in a variable
 named ``app``, create a file called ``wsgi.py``:
