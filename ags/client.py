@@ -9,14 +9,14 @@ from base64 import (
 from functools import wraps
 from http.cookies import SimpleCookie, Morsel
 import json
-import logging
 import os
 import re
+import traceback
 from urllib.parse import parse_qs
 from wsgiref.util import request_uri
 
 from beaker.middleware import SessionMiddleware
-from cached_property import cached_property, threaded_cached_property
+from cached_property import threaded_cached_property
 
 from ags import oidc
 
@@ -45,7 +45,7 @@ def handle_errors(fn):
             return error.response(environ, start_response)
 
         except Exception as exc:
-            error = HttpError('500 Internal Error', str(exc))
+            error = HttpError('500 Internal Error', traceback.format_exc())
             return error.response(environ, start_response)
 
     return handler
