@@ -10,11 +10,9 @@ Python package providing a WSGI middleware for accessing GaaP services.
 Installation
 ------------
 
-You can't do this yet, but soon will.
-
 .. code-block:: bash
 
-    pip install ags_client
+    pip3 install ags_client
 
 
 Usage
@@ -122,7 +120,7 @@ Contributing
 Copyright
 ---------
 
-Copyright |copy| 2015 HM Government (Government Digital Service). See
+Copyright |copy| 2016 HM Government (Government Digital Service). See
 LICENSE for further details.
 
 .. |copy| unicode:: 0xA9 .. copyright symbol

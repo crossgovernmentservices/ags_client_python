@@ -1,4 +1,5 @@
-from setuptools import setup
+from functools import reduce
+from setuptools import setup, find_packages
 
 with open('ags/__init__.py', 'r') as f:
     version = reduce(
@@ -10,7 +11,7 @@ with open('README.rst', 'r') as f:
 setup(
     name='ags_client',
     version=version,
-    py_modules=['ags_client'],
+    packages=find_packages(),
     description=('Client library for accessing GaaP services'),
     long_description=readme,
     author='Government Digital Service',
@@ -21,7 +22,12 @@ setup(
     platforms=['any'],
     url='https://github.com/crossgovernmentservices/ags_client_python',
     license='LICENSE',
-    install_requires=['requests>=2.7,<3'],
+    install_requires=[
+        'requests>=2.7,<3', 
+        'python-jose>=1.3.2',
+        'cached-property>=1.3.0',
+        'beaker>=1.8.1',
+        'cryptography>=1.5.2'],
     test_suite="tests",
     classifiers=[
         'Programming Language :: Python',
