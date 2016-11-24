@@ -116,7 +116,7 @@ class AuthorizationCodeFlow(object):
         self._keys = {}
 
     def build_url(self, path):
-        return '{base_url}{path}'.format(base_url=self.base_url, path=path)
+        return '{base_url}{path}'.format(base_url=self.broker_url, path=path)
 
     @property
     def auth_endpoint(self):
