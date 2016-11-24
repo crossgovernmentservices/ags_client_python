@@ -33,7 +33,6 @@ class AuthenticationRequest(Request):
 
         self.params = {
             'scope': ' '.join(scope),
-            'kc_idp_hint': kwargs.pop('idp_hint'),
             'response_type': kwargs.pop('response_type'),
             'client_id': kwargs.pop('client_id'),
             'redirect_uri': kwargs.pop('redirect_uri')
@@ -158,7 +157,6 @@ class AuthorizationCodeFlow(object):
     def authentication_request(self, **kwargs):
         return AuthenticationRequest(
             url=self.auth_endpoint,
-            idp_hint='gds-google',
             response_type='code',
             client_id=self.client_id,
             redirect_uri=self.redirect_uri,
