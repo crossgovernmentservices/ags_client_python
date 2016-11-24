@@ -115,8 +115,8 @@ class AuthorizationCodeFlow(object):
         self.id_token_max_age = None
         self._keys = {}
 
-    def build_url(base_url, path):
-        return '{base_url}{path}'.format(base_url=base_url, path=path)
+    def build_url(path):
+        return '{base_url}{path}'.format(base_url=self.base_url, path=path)
 
     @property
     def auth_endpoint(self):
@@ -126,7 +126,7 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._auth_endpoint:
-            return self.build_url(self.broker_url, self._auth_endpoint)
+            return self.build_url(self._auth_endpoint)
 
         raise BrokerConfigError('Authentication endpoint not set')
 
@@ -138,7 +138,7 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._jwks_uri:
-            return self.build_url(self.broker_url, self._jwks_uri)
+            return self.build_url(self._jwks_uri)
 
         raise BrokerConfigError('JWKs URI not set')
 
@@ -150,7 +150,7 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._token_endpoint:
-            return self.build_url(self.broker_url, self._token_endpoint)
+            return self.build_url(self._token_endpoint)
 
         raise BrokerConfigError('Token endpoint not set')
 
