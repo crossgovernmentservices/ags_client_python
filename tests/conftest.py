@@ -11,7 +11,7 @@ from ags.oidc import AuthorizationCodeFlow
 @pytest.fixture
 def config():
     return {
-        'AGS_BROKER_URL': 'http://broker',
+        'AGS_BROKER_URL': 'http://broker/basepath',
         'AGS_BROKER_AUTH_ENDPOINT': '/auth',
         'AGS_BROKER_TOKEN_ENDPOINT': '/token',
         'AGS_BROKER_JWKS_URI': '/keys',
