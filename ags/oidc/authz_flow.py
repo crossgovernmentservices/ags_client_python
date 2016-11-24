@@ -3,7 +3,7 @@
 from base64 import urlsafe_b64encode
 import datetime
 import logging
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 from urllib.request import Request
 
 import requests
@@ -33,6 +33,7 @@ class AuthenticationRequest(Request):
 
         self.params = {
             'scope': ' '.join(scope),
+            'kc_idp_hint': kwargs.pop('idp_hint'),
             'response_type': kwargs.pop('response_type'),
             'client_id': kwargs.pop('client_id'),
             'redirect_uri': kwargs.pop('redirect_uri')
@@ -123,7 +124,7 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._auth_endpoint:
-            return urljoin(self.broker_url, self._auth_endpoint)
+            return "%s%s" % (self.broker_url, self._auth_endpoint)
 
         raise BrokerConfigError('Authentication endpoint not set')
 
@@ -135,7 +136,7 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._jwks_uri:
-            return urljoin(self.broker_url, self._jwks_uri)
+            return "%s%s" % (self.broker_url, self._jwks_uri)
 
         raise BrokerConfigError('JWKs URI not set')
 
@@ -147,13 +148,14 @@ class AuthorizationCodeFlow(object):
                 self.load_broker_config()
 
         if self._token_endpoint:
-            return urljoin(self.broker_url, self._token_endpoint)
+            return "%s%s" % (self.broker_url, self._token_endpoint)
 
         raise BrokerConfigError('Token endpoint not set')
 
     def authentication_request(self, **kwargs):
         return AuthenticationRequest(
             url=self.auth_endpoint,
+            idp_hint='gds-google',
             response_type='code',
             client_id=self.client_id,
             redirect_uri=self.redirect_uri,
