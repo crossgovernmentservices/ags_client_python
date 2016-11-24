@@ -253,3 +253,12 @@ class TestAuthzCodeFlow(object):
         assert 'auth_data' in environ
         assert 'id_token' in environ['auth_data']
         assert isinstance(environ['auth_data']['id_token'], dict)
+
+    @pytest.mark.parametrize('path,expected', [
+        ('/some/path', 'http://broker/basepath/some/path'),
+        ('', 'http://broker/basepath'),
+        (12345, 'http://broker/basepath12345')
+    ])
+    def test_build_url_assembles_arbitrary_urls(
+            self, flow, path, expected):
+        assert flow.build_url(path) == expected
