@@ -259,6 +259,6 @@ class TestAuthzCodeFlow(object):
         ('', 'http://broker/basepath'),
         (12345, 'http://broker/basepath12345')
     ])
-    def test_build_url_assembles_arbitrary_urls(
+    def test_build_url_concatenates_path_to_base_url(
             self, flow, path, expected):
         assert flow.build_url(path) == expected
