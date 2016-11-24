@@ -115,7 +115,7 @@ class AuthorizationCodeFlow(object):
         self.id_token_max_age = None
         self._keys = {}
 
-    def build_url(path):
+    def build_url(self, path):
         return '{base_url}{path}'.format(base_url=self.base_url, path=path)
 
     @property
