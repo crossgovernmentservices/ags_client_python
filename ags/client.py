@@ -123,8 +123,7 @@ class Client(object):
     def sign_out(self, environ, start_response):
         session = environ['beaker.session']
 
-        if 'auth_data' in session:
-            del session['auth_data']
+        session.delete()
 
         if 'auth_data' in environ:
             del environ['auth_data']
@@ -151,7 +150,7 @@ class Client(object):
     @property
     def callback_url_pattern(self):
         path = self.config.get('AGS_CLIENT_CALLBACK_PATH', 'oidc_cb')
-        return re.compile(r'^{}/?$'.format(path))
+        return re.compile(r'^{}/?$'.format(re.escape(path)))
 
     def feature_switch_active(self, environ):
         cookie = SimpleCookie()
@@ -212,7 +211,7 @@ class Client(object):
     @property
     def signout_url_pattern(self):
         path = self.config.get('AGS_CLIENT_SIGN_OUT_PATH', 'sign-out')
-        return re.compile(r'^{}/$'.format(path))
+        return re.compile(r'^{}/?$'.format(re.escape(path)))
 
     def state(self, environ):
         return b64encode(json.dumps({
