@@ -10,13 +10,7 @@ import requests
 
 from ags.oidc.exceptions import AuthenticationRequestError, BrokerConfigError
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
-logger.addHandler(ch)
+from ags.logger import logger
 
 
 DISPLAY_VALUES = ['page', 'popup', 'touch', 'wap']
@@ -36,6 +30,7 @@ class AuthenticationRequest(Request):
             'response_type': kwargs.pop('response_type'),
             'client_id': kwargs.pop('client_id'),
             'redirect_uri': kwargs.pop('redirect_uri')
+            # ,'kc_idp_hint': "gds-google" # for silent log in via keycloak using only GDS google
         }
 
         if 'display' in kwargs:
@@ -77,7 +72,7 @@ class AuthenticationRequest(Request):
 
 
 class TokenRequest(Request):
-
+    
     def __init__(self, url, code, **kwargs):
 
         auth = '{client_id}:{client_secret}'.format(**kwargs).encode('utf-8')
