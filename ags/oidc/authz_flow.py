@@ -10,8 +10,7 @@ import requests
 
 from ags.oidc.exceptions import AuthenticationRequestError, BrokerConfigError
 
-from ags.logger import logger
-
+from ags.logger import logger, set_log_path
 
 DISPLAY_VALUES = ['page', 'popup', 'touch', 'wap']
 PROMPT_VALUES = ['none', 'login', 'consent', 'select_account']
@@ -109,6 +108,8 @@ class AuthorizationCodeFlow(object):
         self.clock_skew = datetime.timedelta(seconds=60)
         self.id_token_max_age = None
         self._keys = {}
+        set_log_path(config.get('AGS_CLIENT_LOG_PATH'))    
+
 
     def build_url(self, path):
         return '{base_url}{path}'.format(base_url=self.broker_url, path=path)

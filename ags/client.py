@@ -23,9 +23,7 @@ from cached_property import threaded_cached_property
 
 from ags import oidc
 
-from ags.logger import logger
-
-logger.info("AGS Client Logging configured")
+from ags.logger import logger, set_log_path
 
 
 class HttpError(Exception):
@@ -74,6 +72,9 @@ class Client(object):
         for k in os.environ:
             if k.startswith('AGS_'):
                 self.config[k] = os.environ[k]
+
+        set_log_path(self.config.get('AGS_CLIENT_LOG_PATH'))    
+
 
     def __call__(self, environ, start_response):
         return self.beaker(environ, start_response)
@@ -135,16 +136,19 @@ class Client(object):
     def sign_out(self, environ, start_response):
         session = environ['beaker.session']
 
-        logout_url = '{}{}?id_token_hint={}'.format(
-            self.config.get('AGS_BROKER_URL'),
-            self.config.get('AGS_BROKER_LOGOUT_ENDPOINT'),
-            session['auth_data']['id_token_jwt'])
+        if session:
+            logout_url = '{}{}'.format(
+                self.config.get('AGS_BROKER_URL'),
+                self.config.get('AGS_BROKER_LOGOUT_ENDPOINT'))
 
-        logger.debug('logout_url:{}'.format(logout_url))     
+            payload = { "id_token_hint" : session['auth_data']['id_token_jwt'] }
+
+            logger.debug('logout_url:{}'.format(logout_url))     
+            
+            r = requests.get(logout_url, params=payload)
+            r.raise_for_status()
         
-        r = requests.get(logout_url)
-
-        session.delete()
+            session.delete()
 
         if 'auth_data' in environ:
             del environ['auth_data']
