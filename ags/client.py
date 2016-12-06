@@ -9,6 +9,9 @@ from base64 import (
 from functools import wraps
 from http.cookies import SimpleCookie, Morsel
 import json
+import logging, sys
+import datetime
+import requests
 import os
 import re
 import traceback
@@ -19,6 +22,8 @@ from beaker.middleware import SessionMiddleware
 from cached_property import threaded_cached_property
 
 from ags import oidc
+
+from ags.logger import logger, set_log_path
 
 
 class HttpError(Exception):
@@ -68,6 +73,9 @@ class Client(object):
             if k.startswith('AGS_'):
                 self.config[k] = os.environ[k]
 
+        set_log_path(self.config.get('AGS_CLIENT_LOG_PATH'))    
+
+
     def __call__(self, environ, start_response):
         return self.beaker(environ, start_response)
 
@@ -96,6 +104,8 @@ class Client(object):
 
     @handle_errors
     def callback(self, environ, start_response):
+        logger.info('callback:')
+
         code = self.authorization_code(environ)
         state = self.callback_state(environ)
 
@@ -104,12 +114,15 @@ class Client(object):
 
         token_response = self.token_request(code)
 
+        logger.debug("token_response:{}".format(token_response))
+
         id_token = oidc.token.IdToken(token_response['id_token'], self.flow)
         id_token.is_valid()
 
         session = environ['beaker.session']
         session['auth_data'] = {
             'id_token': id_token.token,
+            'id_token_jwt': token_response['id_token'],
             'access_token': token_response['access_token']}
 
         next_url = '/'
@@ -123,8 +136,19 @@ class Client(object):
     def sign_out(self, environ, start_response):
         session = environ['beaker.session']
 
-        if 'auth_data' in session:
-            del session['auth_data']
+        if session:
+            logout_url = '{}{}'.format(
+                self.config.get('AGS_BROKER_URL'),
+                self.config.get('AGS_BROKER_LOGOUT_ENDPOINT'))
+
+            payload = { "id_token_hint" : session['auth_data']['id_token_jwt'] }
+
+            logger.debug('logout_url:{}'.format(logout_url))     
+            
+            r = requests.get(logout_url, params=payload)
+            r.raise_for_status()
+        
+            session.delete()
 
         if 'auth_data' in environ:
             del environ['auth_data']
@@ -151,7 +175,7 @@ class Client(object):
     @property
     def callback_url_pattern(self):
         path = self.config.get('AGS_CLIENT_CALLBACK_PATH', 'oidc_cb')
-        return re.compile(r'^{}/?$'.format(path))
+        return re.compile(r'^{}/?$'.format(re.escape(path)))
 
     def feature_switch_active(self, environ):
         cookie = SimpleCookie()
@@ -212,7 +236,7 @@ class Client(object):
     @property
     def signout_url_pattern(self):
         path = self.config.get('AGS_CLIENT_SIGN_OUT_PATH', 'sign-out')
-        return re.compile(r'^{}/$'.format(path))
+        return re.compile(r'^{}/?$'.format(re.escape(path)))
 
     def state(self, environ):
         return b64encode(json.dumps({
