@@ -1,54 +1,20 @@
+from datetime import datetime
+from http.cookies import SimpleCookie
 import mock
-from wsgiref.simple_server import demo_app
 from wsgiref.util import setup_testing_defaults
 
 import pytest
 
-import ags
-from ags.oidc import AuthorizationCodeFlow
+
+@pytest.fixture
+def cookie_jar():
+    return {}
 
 
 @pytest.fixture
-def config():
-    return {
-        'AGS_BROKER_URL': 'http://broker/basepath',
-        'AGS_BROKER_AUTH_ENDPOINT': '/auth',
-        'AGS_BROKER_TOKEN_ENDPOINT': '/token',
-        'AGS_BROKER_JWKS_URI': '/keys',
-        'AGS_CLIENT_ID': 'test-client',
-        'AGS_CLIENT_SECRET': 'test-secret',
-        'AGS_CLIENT_AUTHENTICATED_URLS': 'foo'
-    }
+def wsgi_request(cookie_jar):
 
-
-@pytest.fixture
-def flow(config):
-    return AuthorizationCodeFlow(config)
-
-
-@pytest.fixture
-def wsgi_stack(config):
-    inner = mock.MagicMock()
-    inner.side_effect = demo_app
-
-    middleware = ags.Client(inner)
-    middleware.config = config
-
-    outer = mock.MagicMock()
-
-    def call_client(environ, start_response):
-        return middleware(environ, start_response)
-
-    outer.side_effect = call_client
-
-    return outer, middleware, inner
-
-
-@pytest.fixture
-def wsgi_request(wsgi_stack):
-    outer, middleware, inner = wsgi_stack
-
-    def make_request(url, data=None, headers={}):
+    def make_request(wsgi_app, url, data=None, headers={}):
         path, _, query = url.partition('?')
         environ = {
             'PATH_INFO': path,
@@ -57,11 +23,35 @@ def wsgi_request(wsgi_stack):
         setup_testing_defaults(environ)
         environ.update(headers)
 
+        cookies = environ.get('HTTP_COOKIE', [])
+        if cookies:
+            cookies = cookies.split(';')
+        for key, val in cookie_jar.items():
+            cookies.append('{}={}'.format(key.strip(), val.strip()))
+        environ['HTTP_COOKIE'] = ';'.join(cookies)
+
         start_response = mock.MagicMock()
-        response = outer(environ, start_response)
+        response = wsgi_app(environ, start_response)
         calls = start_response.mock_calls
         status = calls[0][1][0]
         headers = calls[0][1][1]
+
+        for header, val in headers:
+            if header == 'Set-cookie':
+                cookie = SimpleCookie()
+                cookie.load(val)
+                key = list(cookie.keys())[0]
+                value = list(cookie.values())[0]
+                expires = value['expires']
+                if expires:
+                    expires = datetime.strptime(
+                        expires, '%a, %d-%b-%Y %H:%M:%S %Z')
+                if expires and expires < datetime.now():
+                    if key in cookie_jar:
+                        del cookie_jar[key]
+                else:
+                    cookie_jar[key] = value.value
+
         return status, headers, response
 
     return make_request

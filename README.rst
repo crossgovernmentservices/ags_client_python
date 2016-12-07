@@ -58,35 +58,41 @@ Configuration
 The middleware looks for certain environment variables for settings. The
 following variables are **REQUIRED**:
 
+``AGS_CLIENT_ISSUER``
+    The URL of the OIDC identity broker
+
 ``AGS_CLIENT_ID``
     The client ID that you have been issued
 
 ``AGS_CLIENT_SECRET``
     The client secret that you have been issued
 
-``AGS_CLIENT_AUTHENTICATED_URLS``
+``AGS_CLIENT_AUTHENTICATED_PATHS``
     Comma separated list of paths in your web application that require
     authentication. May include regular expressions.
-
-The following variables are **OPTIONAL**:
 
 ``AGS_CLIENT_SIGN_OUT_PATH``
     Path to sign out view in your application - default: ``sign-out``
 
+The following variables are **OPTIONAL**:
+
+``AGS_CLIENT_DEBUG``
+    If set to ``True``, errors will be handled by the Werkzeug debugger. DO NOT
+    USE IN PRODUCTION!
+
+``AGS_CLIENT_SESSION_COOKIE``
+    The name of the cookie used to store the session ID - default:
+    ``ags_client_session``
+
+``AGS_CLIENT_SESSION_SECRET``
+    The secret key use to encrypt the session cookie - default: generates a new
+    secret on start-up, which will invalidate any prior sessions
+
+``AGS_CLIENT_VERIFY_SSL``
+    If ``False``, verification of the broker's SSL certificate is skipped
+
 The following variables can be used to override defaults, but usually should
 not be used:
-
-``AGS_BROKER_AUTH_ENDPOINT``
-    The path to the OIDC authentication endpoint on the broker
-
-``AGS_BROKER_JWKS_URI``
-    The path to the OIDC jwks_uri endpoint on the broker
-
-``AGS_BROKER_TOKEN_ENDPOINT``
-    The path to the OIDC token endpoint on the broker
-
-``AGS_BROKER_URL``
-    The URL of the OIDC identity broker
 
 ``AGS_CLIENT_CALLBACK_PATH``
     Overrides default OIDC callback path

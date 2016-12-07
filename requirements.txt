@@ -1,11 +1,10 @@
+beaker
+mock
+oic
 pytest
-pytest_watch
 pytest_eradicate
 pytest_flake8
-mock
 pytest_spec
+pytest_watch
 requests
-python-jose
-cached-property
-beaker
-cryptography
+werkzeug
