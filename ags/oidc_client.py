@@ -22,19 +22,23 @@ def redirect(url, start_response):
     return [b'']
 
 
-class AuthError(Exception):
+class OIDCClientError(Exception):
     pass
 
 
-class SignOutError(Exception):
+class AuthError(OIDCClientError):
     pass
 
 
-class TokenError(Exception):
+class SignOutError(OIDCClientError):
     pass
 
 
-class UserinfoError(Exception):
+class TokenError(OIDCClientError):
+    pass
+
+
+class UserinfoError(OIDCClientError):
     pass
 
 
@@ -64,8 +68,6 @@ class OIDCAuthMiddleware(object):
             verify_ssl=(config.get('VERIFY_SSL', True) != 'False'))
         client.provider_config(config['ISSUER'])
 
-        config['redirect_uris'] = []
-
         client.store_registration_info(RegistrationRequest(
             redirect_uris=[],
             client_id=config['ID'],
@@ -73,21 +75,6 @@ class OIDCAuthMiddleware(object):
         ))
 
         self.client = client
-
-    def setup_routes(self):
-        for path in self.config.get('AUTHENTICATED_PATHS', '').split(','):
-            self.router.route(
-                '^/{}/?$'.format(re.escape(path)))(self.authenticate)
-
-        self.router.route(
-            '^/{}/?$'.format(re.escape(
-                self.config.get('CALLBACK_PATH', 'oidc_callback')))
-            )(self.callback)
-
-        self.router.route(
-            '^/{}/?$'.format(re.escape(
-                self.config.get('SIGN_OUT_PATH', 'sign-out')))
-            )(self.sign_out)
 
     def __call__(self, environ, start_response):
         try:
@@ -209,11 +196,15 @@ class OIDCAuthMiddleware(object):
             'redirect_uri': self.callback_url(environ),
         }
 
-        token_response = self.client.do_access_token_request(
-            state=state,
-            request_args=args,
-            authn_method=self.client.registration_response.get(
-                'token_endpoint_auth_method', 'client_secret_basic'))
+        try:
+            token_response = self.client.do_access_token_request(
+                state=state,
+                request_args=args,
+                authn_method=self.client.registration_response.get(
+                    'token_endpoint_auth_method', 'client_secret_basic'))
+
+        except Exception as exc:
+            raise OIDCClientError(exc)
 
         id_token = token_response['id_token']
         if id_token['nonce'] != session.pop('nonce'):
@@ -284,3 +275,18 @@ class OIDCAuthMiddleware(object):
         return urljoin(
             request_uri(environ),
             '/{}'.format(self.config.get('SIGN_OUT_PATH', 'sign-out')))
+
+    def setup_routes(self):
+        for path in self.config.get('AUTHENTICATED_PATHS', '').split(','):
+            self.router.route(
+                '^/{}/?$'.format(re.escape(path)))(self.authenticate)
+
+        self.router.route(
+            '^/{}/?$'.format(re.escape(
+                self.config.get('CALLBACK_PATH', 'oidc_callback')))
+            )(self.callback)
+
+        self.router.route(
+            '^/{}/?$'.format(re.escape(
+                self.config.get('SIGN_OUT_PATH', 'sign-out')))
+            )(self.sign_out)

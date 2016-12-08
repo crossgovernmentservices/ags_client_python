@@ -11,6 +11,15 @@ class Router(object):
     def __init__(self):
         self.routes = []
 
+    def __call__(self, environ, start_response):
+
+        parts = urlparse(environ['PATH_INFO'])
+
+        app = self.resolve(environ['REQUEST_METHOD'], parts.path)
+
+        if app:
+            return app(environ, start_response)
+
     def route(self, pattern, methods=['GET']):
 
         def decorator(app):
@@ -26,12 +35,3 @@ class Router(object):
                 return app
 
         raise RouteNotMatched(route for route, _ in self.routes)
-
-    def __call__(self, environ, start_response):
-
-        parts = urlparse(environ['PATH_INFO'])
-
-        app = self.resolve(environ['REQUEST_METHOD'], parts.path)
-
-        if app:
-            return app(environ, start_response)
