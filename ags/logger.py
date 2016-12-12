@@ -28,7 +28,8 @@ if 'AGS_CLIENT_LOG_PATH' in os.environ:
     config['handlers']['file'] = {
         'class': 'logging.FileHandler',
         'formatter': 'default',
-        'level': 'DEBUG'
+        'level': 'DEBUG',
+        'filename': os.environ['AGS_CLIENT_LOG_PATH']
     }
     config['loggers']['ags']['handlers'].append('file')
 

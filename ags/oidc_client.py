@@ -109,10 +109,16 @@ class OIDCAuthMiddleware(object):
             request_args={
                 'client_id': self.client.client_id,
                 'response_type': 'code',
-                'scope': ['openid'],
+                'scope': ['openid', 'profile'],
                 'redirect_uri': self.callback_url(environ),
                 'state': session['state'],
                 'nonce': session['nonce'],
+                'claims': {
+                    'userinfo': {
+                        'email': {'essential': True},
+                        'name': {'essential': True}
+                    }
+                }
             }
         )
 
