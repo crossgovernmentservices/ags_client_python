@@ -236,7 +236,7 @@ class OIDCAuthMiddleware(object):
         session = environ['beaker.session']
         id_token_jwt = session.get('id_token_jwt')
 
-        if not self.is_sign_out_callback(environ):
+        if id_token_jwt and not self.is_sign_out_callback(environ):
             self.logger.info('Clearing session')
             session.clear()
 
