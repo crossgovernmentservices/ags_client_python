@@ -3,7 +3,7 @@
 A Python client library for Accessing GaaP Services.
 """
 
-from ags.client import Client
+from ags.client import Client  # noqa
 
 
-__version__ = '0.0.5'
+__version__ = '0.1.0'
