@@ -23,11 +23,10 @@ setup(
     url='https://github.com/crossgovernmentservices/ags_client_python',
     license='LICENSE',
     install_requires=[
-        'requests>=2.7,<3', 
-        'python-jose>=1.3.2',
-        'cached-property>=1.3.0',
+        'requests>=2.7,<3',
         'beaker>=1.8.1',
-        'cryptography>=1.5.2'],
+        'oic>=0.9.1.0',
+        'Werkzeug>=0.11.11'],
     test_suite="tests",
     classifiers=[
         'Programming Language :: Python',
