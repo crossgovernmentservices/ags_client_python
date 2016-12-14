@@ -60,7 +60,7 @@ class OIDCAuthMiddleware(object):
             'session.data_dir': '/tmp',
             'session.lock_dir': '/tmp',
             'session.key': config.get('SESSION_COOKIE', 'ags_client_session'),
-            'session.secret': config.get('SESSION_SECRET', os.urandom(24)),
+            'session.secret': config.get('SESSION_SECRET', 'secret'),
             'session.type': 'file'})
 
         client = Client(
@@ -138,9 +138,14 @@ class OIDCAuthMiddleware(object):
         self.logger.info('Handling authentication callback')
 
         session = environ['beaker.session']
-
         environ['QUERY_STRING'] = environ['QUERY_STRING'].encode('utf-8')
-        code, state = self.parse_auth_response(environ)
+
+        try:
+            code, state = self.parse_auth_response(environ)
+
+        except Exception as error:
+            self.logger.error(str(error))
+            raise error
 
         self.logger.info('Exchanging authz code for access and id tokens')
 
@@ -189,10 +194,13 @@ class OIDCAuthMiddleware(object):
             info=environ['QUERY_STRING'].decode('utf-8'),
             sformat='urlencoded')
 
-        state = auth_response['state']
+        state = auth_response.get('state')
 
-        if state != session.pop('state'):
+        if state != session.get('state'):
             raise AuthError("Server 'state' parameter does not match")
+
+        if 'state' in session:
+            del session['state']
 
         return auth_response['code'], state
 

@@ -22,6 +22,10 @@ config = {
             'level': 'DEBUG'
         }
     },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    }
 }
 
 if 'AGS_CLIENT_LOG_PATH' in os.environ:
@@ -32,6 +36,7 @@ if 'AGS_CLIENT_LOG_PATH' in os.environ:
         'filename': os.environ['AGS_CLIENT_LOG_PATH']
     }
     config['loggers']['ags']['handlers'].append('file')
+    config['root']['handlers'].append('file')
 
 
 def get_logger(name):
