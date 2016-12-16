@@ -229,3 +229,30 @@ class TestOIDCAuthMiddleware(object):
 
         environ, start_response = wsgi_app.mock_calls[1][1]
         assert environ.get('auth_data', {}).get('id_token') is None
+
+    @pytest.mark.xfail
+    def test_invalid_auth_callback_displays_error_message(self):
+        # error message should give enough information to figure out what is
+        # wrong
+        assert False
+
+    @pytest.mark.xfail
+    def test_token_request_error_displays_error_message(self):
+        # error message should give enough information
+        assert False
+
+    @pytest.mark.xfail
+    def test_userinfo_sub_mismatch_displays_error_message(self):
+        # error message should give enough information
+        assert False
+
+    @pytest.mark.xfail
+    def test_signout_callback_state_mismatch_displays_error_message(self):
+        # error message should give enough information
+        assert False
+
+    @pytest.mark.xfail
+    def test_oidc_client_displays_error_message_with_bad_config(self):
+        # if config keys are missing or values are bad, the client should
+        # log an error message and pass through requests to the client wsgi app
+        assert False

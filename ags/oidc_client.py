@@ -1,4 +1,3 @@
-import os
 import re
 from urllib.parse import parse_qs, urljoin
 from wsgiref.util import request_uri
