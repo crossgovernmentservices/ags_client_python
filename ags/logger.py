@@ -1,44 +1,20 @@
-import logging.config
+import logging
 import os
 
 
-config = {
-    'version': 1,
-    'formatters': {
-        'default': {
-            'format': '%(name)s [%(levelname)s] %(message)s'
-        }
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'default',
-            'level': 'DEBUG'
-        }
-    },
-    'loggers': {
-        'ags': {
-            'handlers': ['console'],
-            'level': 'DEBUG'
-        }
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG',
-    }
-}
-
-if 'AGS_CLIENT_LOG_PATH' in os.environ:
-    config['handlers']['file'] = {
-        'class': 'logging.FileHandler',
-        'formatter': 'default',
-        'level': 'DEBUG',
-        'filename': os.environ['AGS_CLIENT_LOG_PATH']
-    }
-    config['loggers']['ags']['handlers'].append('file')
-    config['root']['handlers'].append('file')
-
-
 def get_logger(name):
-    logging.config.dictConfig(config)
-    return logging.getLogger(name)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('{name} {levelname} {message}', style='{')
+    handlers = [logging.StreamHandler()]
+
+    if 'AGS_CLIENT_LOG_PATH' in os.environ:
+        handlers.append(
+            logging.FileHandler(filename=os.environ['AGS_CLIENT_LOG_PATH']))
+
+    for handler in handlers:
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    return logger
