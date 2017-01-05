@@ -6,7 +6,7 @@ config = {
     'version': 1,
     'formatters': {
         'default': {
-            'format': '%(name)s [%(levelname)s] %(message)s'
+            'format': '%(asctime)s - %(name)s [%(levelname)s] %(message)s'
         }
     },
     'handlers': {
