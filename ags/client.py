@@ -56,6 +56,11 @@ class Client(object):
             return self.app(environ, start_response)
 
         except OIDCClientError as oidc_error:
+            self.logger.exception(str(oidc_error))
             if not self.debug:
                 return ClientError(oidc_error)(environ, start_response)
+            raise oidc_error
+
+        except:
+            self.logger.exception('AGS Client error')
             raise

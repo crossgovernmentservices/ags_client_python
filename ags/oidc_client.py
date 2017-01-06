@@ -143,7 +143,7 @@ class OIDCAuthMiddleware(object):
             code, state = self.parse_auth_response(environ)
 
         except Exception as error:
-            self.logger.error(str(error))
+            self.logger.exception(str(error))
             raise error
 
         self.logger.info('Exchanging authz code for access and id tokens')
@@ -217,6 +217,7 @@ class OIDCAuthMiddleware(object):
                     'token_endpoint_auth_method', 'client_secret_basic'))
 
         except Exception as exc:
+            self.logger.exception('Token request error')
             raise OIDCClientError(exc)
 
         id_token = token_response['id_token']
