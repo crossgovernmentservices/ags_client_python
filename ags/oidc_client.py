@@ -56,8 +56,8 @@ class OIDCAuthMiddleware(object):
         self.wsgi_app = SessionMiddleware(self.router, {
             'session.auto': True,
             'session.cookie_expires': True,
-            'session.data_dir': '/tmp',
-            'session.lock_dir': '/tmp',
+            'session.data_dir': '/tmp/ags_client',
+            'session.lock_dir': '/tmp/ags_client',
             'session.key': config.get('SESSION_COOKIE', 'ags_client_session'),
             'session.secret': config.get('SESSION_SECRET', 'secret'),
             'session.type': 'file'})
