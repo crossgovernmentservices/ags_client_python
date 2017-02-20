@@ -112,12 +112,6 @@ class OIDCAuthMiddleware(object):
                 'redirect_uri': self.callback_url(environ),
                 'state': session['state'],
                 'nonce': session['nonce'],
-                'claims': {
-                    'userinfo': {
-                        'email': {'essential': True},
-                        'name': {'essential': True}
-                    }
-                }
             }
         )
 
